@@ -85,6 +85,8 @@ struct DisplayAttributes {
     // To trigger padding round to clean up mdp
     // pipes
     bool isConfiguring;
+    // External Display is in MDP Downscale mode indicator
+    bool mDownScaleMode;
 };
 
 struct ListStats {
@@ -181,6 +183,8 @@ int getBlending(int blending);
 //Helper function to dump logs
 void dumpsys_log(android::String8& buf, const char* fmt, ...);
 
+int getExtOrientation(hwc_context_t* ctx);
+
 /* Calculates the destination position based on the action safe rectangle */
 void getActionSafePosition(hwc_context_t *ctx, int dpy, hwc_rect_t& dst);
 
@@ -192,8 +196,19 @@ void getAspectRatioPosition(hwc_context_t* ctx, int dpy, int extOrientation,
 
 bool isPrimaryPortrait(hwc_context_t *ctx);
 
+bool isOrientationPortrait(hwc_context_t *ctx);
+
 void calcExtDisplayPosition(hwc_context_t *ctx,
-                               int dpy, hwc_rect_t& displayFrame);
+                               private_handle_t *hnd,
+                               int dpy,
+                               hwc_rect_t& sourceCrop,
+                               hwc_rect_t& displayFrame,
+                               int& transform,
+                               ovutils::eTransform& orient);
+
+// Returns the orientation that needs to be set on external for
+// BufferMirrirMode(Sidesync)
+int getMirrorModeOrientation(hwc_context_t *ctx);
 
 //Close acquireFenceFds of all layers of incoming list
 void closeAcquireFds(hwc_display_contents_1_t* list);
@@ -320,7 +335,7 @@ inline void swap(T& a, T& b) {
     a = b;
     b = tmp;
 }
-
+int getSocIdFromSystem();
 }; //qhwc namespace
 
 // -----------------------------------------------------------------------------
@@ -374,6 +389,11 @@ struct hwc_context_t {
     mutable Locker mDrawLock;
     // External Orientation
     int mExtOrientation;
+    //Used for SideSync feature
+    //which overrides the mExtOrientation
+    bool mBufferMirrorMode;
+    //used for enabling C2D Feature only for 8960 Non Pro Device
+    int mSocId;
     qhwc::LayerRotMap *mLayerRotMap[HWC_NUM_DISPLAY_TYPES];
 };
 
@@ -385,6 +405,11 @@ static inline bool isSkipPresent (hwc_context_t *ctx, int dpy) {
 static inline bool isYuvPresent (hwc_context_t *ctx, int dpy) {
     return  ctx->listStats[dpy].yuvCount;
 }
+
+static inline bool has90Transform(hwc_layer_1_t *layer) {
+    return (layer->transform & HWC_TRANSFORM_ROT_90);
+}
+
 };
 
 #endif //HWC_UTILS_H
